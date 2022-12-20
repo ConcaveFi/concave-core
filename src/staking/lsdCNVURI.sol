@@ -3,9 +3,11 @@ pragma solidity >=0.8.0;
 
 import "../interfaces/IStakingV1.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
+import "./dateTime.sol";
 
 contract lsdCNVURI {
     using Strings for uint256;
+    using DateTImeLibrary for uint;
     address CNV_ADDRESS;
 
     struct LSDPosition {
@@ -20,7 +22,7 @@ contract lsdCNVURI {
 
     modifier tokenExists(uint _id) {
         require(
-            IStakingV1(CNV_ADDRESS).ownerOf(tokenId) != address(0),
+            IStakingV1(CNV_ADDRESS).ownerOf(_id) != address(0),
             "ERC721Metadata: URI query for nonexistent token"
         );
         _;
@@ -39,9 +41,9 @@ contract lsdCNVURI {
             return "180 Days";
         } else if (_poolID == 2) {
             return "90 Days";
-        } else {
+        } else if (_poolID == 3) {
             return "45 Days";
-        }
+        } else return "Unlocked";
     }
 
     function _formatRewardsEarned(
