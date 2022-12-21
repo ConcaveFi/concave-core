@@ -4,8 +4,10 @@ pragma solidity >=0.8.0;
 import "../interfaces/IStakingV1.sol";
 import "@openzeppelin/contracts/utils/Strings.sol";
 import "./dateTime.sol";
+import "./svgs/svg555Helper.sol";
+import "@openzeppelin/contracts/utils/Base64.sol";
 
-contract lsdCNVURI {
+contract lsdCNVURI is svg555Helper {
     using Strings for uint256;
     using DateTImeLibrary for uint;
     address CNV_ADDRESS;
@@ -102,41 +104,26 @@ contract lsdCNVURI {
     function tokenURI(
         uint256 _tokenId
     ) public view tokenExists(_tokenId) returns (string memory) {
+        bytes memory output;
         LSDPosition position = _getPosition(_tokenId);
-        string[14] memory svg;
-        svg[0] = "SOMESVGHERE";
-        svg[1] = position.stakePeriod;
-        svg[2] = "SOMESVGHERE";
-        svg[3] = position.vAPR;
-        svg[4] = "SOMESVGHERE";
-        svg[5] = position.dateUnlocks;
-        svg[6] = "SOMESVGHERE";
-        svg[7] = position.dateStaked;
-        svg[8] = "SOMESVGHERE";
-        svg[9] = position.currentValue;
-        svg[10] = "SOMESVGHERE";
-        svg[11] = position.cnvGained;
-        svg[12] = "SOMESVGHERE";
-        svg[13] = position.cnvInitial;
-        svg[14] = "SOMESVGHERE";
-
+        string[9] newSVG = _setData(
+            position.stakePeriod,
+            position.vAPR,
+            position.dateStaked,
+            position.dateUnlocks,
+            position.redeemsIn,
+            position.currentValue,
+            position.cnvGained,
+            position.cnvInitial
+        );
+        for (uint256 i = 0; i < newSVG.length; i++) {
+            output = abi.encodePacked(output, newSVG[i]);
+        }
         return
             string(
                 abi.encodePacked(
-                    svg[1],
-                    svg[2],
-                    svg[3],
-                    svg[4],
-                    svg[5],
-                    svg[6],
-                    svg[7],
-                    svg[8],
-                    svg[9],
-                    svg[10],
-                    svg[11],
-                    svg[12],
-                    svg[13],
-                    svg[14]
+                    "data:application/json;base64,",
+                    Base64.encode(output)
                 )
             );
     }
