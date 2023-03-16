@@ -37,17 +37,18 @@ contract RedeemBBTV3 is Owned {
 
     /// @notice address of staking contract
     address public immutable staking;
+
+    uint256 public immutable deadline;
     /// @notice mapping of how many CNV tokens a bbtCNV holder has redeemed
     mapping(address => uint256) public redeemed;
     /// @notice redeem paused;
     bool public paused;
-    
+
     ////////////////////////////////////////////////////////////////////////////
     // IMMUTABLE STATE
     ////////////////////////////////////////////////////////////////////////////
-    
-    string internal constant NONE = "NONE LEFT";
 
+    string internal constant NONE = "NONE LEFT";
 
     ////////////////////////////////////////////////////////////////////////////
     // CONSTRUCTOR
@@ -56,12 +57,14 @@ contract RedeemBBTV3 is Owned {
         address _bbtCNV, 
         address _CNV, 
         address _redeemBBTV1,
-        address _staking
+        address _staking,
+        uint256 _deadline
     ) Owned(msg.sender) {
         bbtCNV = _bbtCNV;
         CNV = _CNV;
         redeemBBTV1 = _redeemBBTV1;
         staking = _staking;
+        deadline = _deadline;
     }
 
     ////////////////////////////////////////////////////////////////////////////
@@ -75,7 +78,6 @@ contract RedeemBBTV3 is Owned {
         emit Paused(msg.sender, _paused);
     }
 
-    // contrast uma oracle integration no longer a need for a bonding curve so then whats the gimmick apart from the time 
     ////////////////////////////////////////////////////////////////////////////
     // ACTIONS
     ////////////////////////////////////////////////////////////////////////////
@@ -89,42 +91,38 @@ contract RedeemBBTV3 is Owned {
     function redeem(
         uint256 _amount, 
         address _to, 
-        bool _max
+        bool _max,
+        bool _stake,
+        uint256 _poolId
     ) external returns (uint256 amountOut) {
-        // Check if it's paused
         require(!paused, "PAUSED");
-        // Get user bbtCNV balance, and get amount already redeemed.
-        // If already redeemed full balance - revert on "FULLY_REDEEMED" since
-        // all balance has already been redeemed.
+        require(block.timestamp < deadline, "PAST DEADLINE");
+
         uint256 bbtCNVBalance = IERC20(bbtCNV).balanceOf(msg.sender);
-        uint256 amountRedeemed = redeemed[msg.sender] + IRedeemBBT(redeemBBTV1).redeemed(msg.sender);
-        // still need to check the amount redeemed but the need  to calculate the vesting schedule not relevant
+
+        // Check v1/v2 redemption amounts, aggregate with address(this)
+        uint256 amountRedeemed = redeemed[msg.sender] + IRedeemBBT(redeemBBTV1).redeemed(msg.sender) + IRedeemBBT(redeemBBTV2).redeemed(msg.sender);
+
         require(bbtCNVBalance > amountRedeemed, NONE);
 
-        uint256 amountRedeemable = amountVested - amountRedeemed;
+        uint256 amountRedeemable = bbtCNVBalance - amountRedeemed;
         amountOut = amountRedeemable;
         if (!_max) {
             require(amountRedeemable >= _amount,"EXCEEDS");
             amountOut = _amount;
         }
 
-        // Update state to reflect redemption.
-        // we don't need to burn the coins, the state is maintained within the contract itself ...
-        // 
         redeemed[msg.sender] += amountOut;
 
-        // Stake if they wish to stake
+       if (_stake) {
+            // they decide to stake so no need to transfer
+            IStaking(staking).stake(amountOut, _poolId);
+        } else {
+            // Else its a firesale at a psm ratio
+            ICNV(CNV).transfer(_to, amountOut * 1e18 / rate);
+            emit Redemption(msg.sender, amountOut);
+        }
 
-        // Liquidate if they wish to liquidate
-        // load the treasury with some dai or something, set approvals there such that
-        // if a person requests to liquidate, we can just liquidate the and send it to them
-        // Transfer raw cnv if they wish to transfer raw cnv
-
-        // Transfer CNV
-        // way we have it set up, we would have to load up the cnv contract
-        ICNV(CNV).transfer(_to, amountOut);
-
-        emit Redemption(msg.sender, amountOut);
     }
 
 }
